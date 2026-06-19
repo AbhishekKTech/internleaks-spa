@@ -10,27 +10,28 @@ import {
 import { AnalysisDetail } from "@/components/analysis-detail"
 import { AlertTriangle, Flame, CalendarDays, Loader2 } from "lucide-react"
 
-// Hum local interface use karenge backend format ke hisaab se
 interface BackendReport {
   id: number
-  companyName: string
+  companyName?: string
+  company?: { name: string } 
   scamType: string
   description: string
   createdAt: string
-  // Hum dummy fields add kar rahe hain detail view ke liye
-  reportCount?: number
   riskPercentage?: number
   verdict?: string
-  redFlags?: string[]
+  redFlags?: any // 🔥 FIX: Ab yeh Array ya String dono ho sakta hai
+  companyWebsite?: string
+  hrEmailDomain?: string
+  paymentDemanded?: string
+  interviewTaken?: string
 }
 
 interface ScamWallViewProps {
   reports: BackendReport[]
-  isLoading?: boolean // Naya prop loading state ke liye
+  isLoading?: boolean 
 }
 
 function getRiskStyle(scamType: string) {
-  // 👉 FIX: Agar scamType null/undefined aagaya DB se, toh usko empty string maan lo
   const safeScamType = scamType || ""
 
   if (safeScamType === "High Risk Fraud" || safeScamType.toLowerCase().includes("high")) {
@@ -77,38 +78,50 @@ export function ScamWallView({ reports, isLoading = false }: ScamWallViewProps) 
       </div>
 
       {isLoading ? (
-        // 👉 PREMIUM SKELETON LOADER
         <div className="flex flex-col items-center justify-center min-h-[300px] gap-4">
            <Loader2 className="h-10 w-10 animate-spin text-[#8b5cf6]" />
            <p className="text-white/60">Fetching latest scam reports from database...</p>
         </div>
       ) : reports.length === 0 ? (
-        // 👉 EMPTY STATE
         <div className="flex flex-col items-center justify-center min-h-[300px] rounded-2xl border border-dashed border-white/10 bg-white/5">
            <AlertTriangle className="mb-4 h-12 w-12 text-white/20" />
            <h3 className="text-xl font-bold text-white/80">No Scams Reported Yet</h3>
            <p className="text-white/50">Be the first to report a suspicious internship offer.</p>
         </div>
       ) : (
-        // 👉 ACTUAL DATA CARDS
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {reports.map((report) => {
             const style = getRiskStyle(report.scamType)
 
-            // Extracting verdict and redFlags from description text
-            const descriptionParts = report.description ? report.description.split("| Red Flags:") : ["No description", ""]
-            const verdictText = descriptionParts[0].replace("AI Verdict:", "").trim()
-            const redFlagsText = descriptionParts[1] ? descriptionParts[1].trim() : ""
+            // 🔥 CRASH FIX: Smart Logic jo Array aur String dono ko bina crash hue handle karega
+            let redFlagsArray: string[] = [];
+            if (Array.isArray(report.redFlags)) {
+              redFlagsArray = report.redFlags; // Submit karte time yeh chalega
+            } else if (typeof report.redFlags === "string" && report.redFlags.trim() !== "") {
+              redFlagsArray = report.redFlags.split(" | "); // Refresh (DB load) ke time yeh chalega
+            }
+
+            const displayCompanyName = report.company?.name || report.companyName || "Unknown Company"
+            const displayVerdict = report.verdict || report.description || "No description available"
+            const displayRisk = report.riskPercentage || (report.scamType === "High Risk Fraud" ? 95 : 65)
 
             return (
               <button
                 key={report.id}
                 onClick={() => setSelected({
                   ...report, 
-                  verdict: verdictText, 
-                  redFlags: redFlagsText.split('|'),
-                  riskPercentage: report.scamType === "High Risk Fraud" ? 95 : 65
+                  companyName: displayCompanyName,
+                  verdict: displayVerdict, 
+                  redFlags: redFlagsArray,
+                  riskPercentage: displayRisk,
+                  // 🔥 MISSING DATA FIX: Modal context ke liye data
+                  companyWebsite: report.companyWebsite || "Not provided",
+                  hrEmailDomain: report.hrEmailDomain || "Not provided",
+                  paymentDemanded: report.paymentDemanded || "Not disclosed",
+                  interviewTaken: report.interviewTaken || "Not disclosed"
                 })}
+                // ... yahan se neeche ka <button> ka HTML design same rahega ...
                 className={`group flex flex-col justify-between rounded-2xl border border-white/10 bg-white/5 p-5 text-left backdrop-blur-md transition-all hover:bg-white/[0.07] ${style.hover}`}
               >
                 <div>
@@ -117,14 +130,18 @@ export function ScamWallView({ reports, isLoading = false }: ScamWallViewProps) 
                       <AlertTriangle className="h-3 w-3" />
                       {style.label}
                     </span>
+                    {/* Yahan Risk Score display ho raha hai */}
+                    <span className="text-xs font-bold text-white/40 group-hover:text-white/70">
+                      {displayRisk}% Risk
+                    </span>
                   </div>
 
                   <h3 className="mt-4 text-lg font-bold text-white truncate w-full">
-                    {report.companyName}
+                    {displayCompanyName}
                   </h3>
                   
                   <p className={`mt-1.5 text-sm leading-relaxed line-clamp-3 ${style.color}`}>
-                    {verdictText}
+                    {displayVerdict}
                   </p>
                 </div>
 

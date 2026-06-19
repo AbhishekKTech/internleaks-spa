@@ -40,7 +40,6 @@ export default function Page() {
   const [userName, setUserName] = useState<string>("")
   const activeTab: "scanner" | "wall" = view === "wall" ? "wall" : "scanner"
 
-  // 👉 Loading state for Scam Wall
   const [isWallLoading, setIsWallLoading] = useState(false)
 
   useEffect(() => {
@@ -62,9 +61,7 @@ export default function Page() {
     const fetchAllReports = async () => {
       setIsWallLoading(true) 
       try {
-        // 👉 FIX: Yahan bhi '/reports' ki jagah '/reports/all' kar diya
         const response = await axios.get("http://localhost:8080/api/v1/reports/all");
-        
         const sortedData = response.data.sort((a: any, b: any) => b.id - a.id);
         setReports(sortedData); 
       } catch (error) {
@@ -137,33 +134,50 @@ export default function Page() {
     setView("analyzing")
 
     try {
-      // ==========================================
-      // 🛑 AI BYPASS (DUMMY SCANNER)
-      // ==========================================
-      
-      // 2 seconds ka fake loading animation
-      await new Promise(resolve => setTimeout(resolve, 2000)); 
+      let aiResult;
+      let rawResponseData;
 
-      // Hamesha yeh Scam report generate hogi
-      const aiResult = {
-        riskPercentage: 92,
-        verdict: "[TESTING MODE] This is a mocked high-risk scam report to test the Scam Wall submission.",
-        redFlags: [
-          "Demanding money or security deposit for onboarding.",
-          "Gmail/Yahoo email used instead of a corporate domain.",
-          "Unrealistic stipend for the required role."
-        ],
-        isValidDocument: true
-      };
+      // 🤖 ASLI AI API CALLS (Gemini Engine)
+      if (selectedFile) {
+        const formData = new FormData()
+        formData.append("file", selectedFile)
+        
+        const response = await axios.post("http://localhost:8080/api/v1/analyze-image", formData, {
+          headers: { "Content-Type": "multipart/form-data" }
+        })
+        rawResponseData = response.data;
+      } else {
+        const jobContext = `Website: ${wizard.companyWebsite}. Payment: ${wizard.paymentDemanded}. Interview: ${wizard.interviewTaken}. HR Email: ${wizard.hrEmailDomain}`
+        const response = await axios.post("http://localhost:8080/api/v1/analyze", {
+          companyName: wizard.companyName,
+          jobDetails: jobContext
+        })
+        rawResponseData = response.data;
+      }
 
-      console.log("Mocked AI Analysis:", aiResult)
+      // 🛠️ AI OUTPUT CLEANUP
+      if (typeof rawResponseData === "string") {
+        let cleanString = rawResponseData.replace(/```json/g, "").replace(/```/g, "").trim();
+        
+        const startIdx = cleanString.indexOf('{');
+        const endIdx = cleanString.lastIndexOf('}');
+        if (startIdx !== -1 && endIdx !== -1) {
+          cleanString = cleanString.substring(startIdx, endIdx + 1);
+        }
+        
+        aiResult = JSON.parse(cleanString);
+      } else {
+        aiResult = rawResponseData;
+      }
+
+      console.log("Parsed AI Analysis:", aiResult)
 
       const validCheck = aiResult.isValidDocument !== undefined ? aiResult.isValidDocument : true
       setIsValidDoc(validCheck)
 
       const finalReport: ScamReport = {
         id: Date.now(),
-        companyName: wizard.companyName || "Test Scam Company",
+        companyName: wizard.companyName || "Unknown Company",
         companyWebsite: wizard.companyWebsite,
         paymentDemanded: wizard.paymentDemanded || "Not Sure",
         interviewTaken: wizard.interviewTaken || "Not Sure",
@@ -178,14 +192,13 @@ export default function Page() {
 
       setCurrentReport(finalReport)
 
-      // Dashboard ki history mein save karne ke liye call
       if (isLoggedIn && userEmail) {
         try {
           const token = localStorage.getItem("internleaks_token"); 
 
           const historyPayload = {
             ...finalReport,
-            id: null, // 🔥 FIX: ID ko null kar do taaki Spring auto-generate kare
+            id: null, 
             userEmail: userEmail,
             redFlags: finalReport.redFlags.join(" | "), 
             verdict: finalReport.verdict.length > 240 
@@ -194,31 +207,38 @@ export default function Page() {
           }
 
           await axios.post("http://localhost:8080/api/v1/scan-history/add", historyPayload, {
-            headers: { Authorization: `Bearer ${token}` }
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
           })
         } catch (err) {
           console.error("Failed to save history to DB:", err)
         }
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("AI Analysis Failed:", error)
-      alert("Something went wrong with the scanner.")
+      alert("AI Engine fail ho gaya! Spring Boot console check karo (API key issue ho sakta hai).")
       setView("landing")
     }
   }
 
   const handleReportToWall = async (report: ScamReport) => {
     try {
-      const safeDescription = `AI Verdict: ${report.verdict} | Red Flags: ${report.redFlags.join(' ')}`
+      const safeDescription = `AI Verdict: ${report.verdict}`
       const finalDescription = safeDescription.length > 240 ? safeDescription.substring(0, 240) + "..." : safeDescription;
 
       const backendPayload = {
         userEmail: userEmail,
         companyName: report.companyName || "Unknown Company",
-        websiteUrl: report.companyWebsite || "Not Provided",
+        // 🔥 NAYA FIX: Saari details as it is backend ko bhej rahe hain
+        companyWebsite: report.companyWebsite || "Not Provided",
+        hrEmailDomain: report.hrEmailDomain || "Not Provided",
+        paymentDemanded: report.paymentDemanded || "Not Sure",
+        interviewTaken: report.interviewTaken || "Not Sure",
         scamType: report.riskPercentage > 50 ? "High Risk Fraud" : "Suspicious",
-        description: finalDescription 
+        description: finalDescription, 
+        riskPercentage: report.riskPercentage,
+        verdict: report.verdict,
+        redFlags: report.redFlags.join(" | ") // Array ko string banakar bhej rahe hain
       }
 
       const response = await axios.post("http://localhost:8080/api/v1/reports/add", backendPayload)
@@ -292,7 +312,6 @@ export default function Page() {
             />
           )}
 
-          {/* 👉 YAHAN isLoading PASS KIYA HAI AUR TYPE ERROR FIX KIYA HAI */}
           {view === "wall" && <ScamWallView reports={reports as any} isLoading={isWallLoading} />}
           
           {view === "dashboard" && (
