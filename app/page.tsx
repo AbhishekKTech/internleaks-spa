@@ -137,35 +137,52 @@ export default function Page() {
       let aiResult;
       let rawResponseData;
 
-      // 🤖 ASLI AI API CALLS (Gemini Engine)
+     // 🤖 ASLI AI API CALLS (Gemini Engine)
       if (selectedFile) {
         const formData = new FormData()
         formData.append("file", selectedFile)
+        
+        // 👉 NAYI LINE: Form se typed company name bhi backend ko bhejo
+        formData.append("companyName", wizard.companyName || "Unknown")
         
         const response = await axios.post("http://localhost:8080/api/v1/analyze-image", formData, {
           headers: { "Content-Type": "multipart/form-data" }
         })
         rawResponseData = response.data;
-      } else {
-        const jobContext = `Website: ${wizard.companyWebsite}. Payment: ${wizard.paymentDemanded}. Interview: ${wizard.interviewTaken}. HR Email: ${wizard.hrEmailDomain}`
-        const response = await axios.post("http://localhost:8080/api/v1/analyze", {
-          companyName: wizard.companyName,
-          jobDetails: jobContext
-        })
-        rawResponseData = response.data;
       }
 
-      // 🛠️ AI OUTPUT CLEANUP
+      // 🛠️ BULLETPROOF AI OUTPUT CLEANUP
       if (typeof rawResponseData === "string") {
+        // 1. Markdown ticks hatao
         let cleanString = rawResponseData.replace(/```json/g, "").replace(/```/g, "").trim();
         
+        // 2. Sirf JSON block extract karo (extra text hatao)
         const startIdx = cleanString.indexOf('{');
         const endIdx = cleanString.lastIndexOf('}');
         if (startIdx !== -1 && endIdx !== -1) {
           cleanString = cleanString.substring(startIdx, endIdx + 1);
         }
-        
-        aiResult = JSON.parse(cleanString);
+
+        // 3. Fallback/Safe Parsing (Agar JSON break hota hai toh Default values set karo)
+        try {
+          aiResult = JSON.parse(cleanString);
+        } catch (parseError) {
+          console.error("AI returned malformed JSON. Using fallback data. Raw string:", cleanString);
+          
+          // Agar Gemini ka format bigad jaye toh UI crash hone se bachane ke liye fallback data
+          aiResult = {
+            riskPercentage: cleanString.toLowerCase().includes("high") ? 85 : 45,
+            verdict: "AI completed the analysis, but formatting failed. Check red flags.",
+            redFlags: ["Analysis format error: Unable to parse AI response perfectly. Partial data recovered.", "Manually review the offer details."],
+            isValidDocument: true
+          };
+          
+          // Chhota sa regex hack (Agar ho sake toh risk nikal lo)
+          const riskMatch = cleanString.match(/"riskPercentage"\s*:\s*(\d+)/);
+          if (riskMatch && riskMatch[1]) {
+            aiResult.riskPercentage = parseInt(riskMatch[1]);
+          }
+        }
       } else {
         aiResult = rawResponseData;
       }
