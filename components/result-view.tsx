@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { AnalysisDetail } from "@/components/analysis-detail"
 import { AlertOctagon, Download, RotateCcw, CheckCircle2 } from "lucide-react"
 import type { ScamReport } from "@/lib/internleaks-data"
+import jsPDF from "jspdf"
 
 interface ResultViewProps {
   report: ScamReport
@@ -28,32 +29,111 @@ export function ResultView({
     setReported(true)
   }
 
+  // 👉 NAYA FIX: Remove Emojis and unsupported characters so jsPDF doesn't crash
+  const sanitizeText = (str: string) => {
+    if (!str) return ""
+    // Only allow standard ASCII characters (removes emojis and weird symbols)
+    return str.replace(/[^\x20-\x7E\n]/g, "")
+  }
+
   const handleDownload = () => {
-    const lines = [
-      "INTERNLEAKS — AI RISK REPORT",
-      "================================",
-      `Report ID: ${report.id}`,
-      `Company: ${report.companyName}`,
-      `Website: ${report.companyWebsite || "N/A"}`,
-      `HR Email Domain: ${report.hrEmailDomain}`,
-      `Payment Demanded: ${report.paymentDemanded}`,
-      `Interview Taken: ${report.interviewTaken}`,
-      `Risk: ${report.riskPercentage}%`,
-      `Verdict: ${report.verdict}`,
-      "",
-      "Red Flags:",
-      ...report.redFlags.map((f, i) => `  ${i + 1}. ${f}`),
-      "",
-      `User Feedback: ${report.userSuspicionFeedback || "N/A"}`,
-      `Generated: ${report.reportedAt}`,
-    ]
-    const blob = new Blob([lines.join("\n")], { type: "text/plain" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `internleaks-report-${report.id}.txt`
-    a.click()
-    URL.revokeObjectURL(url)
+    const doc = new jsPDF()
+    const pageWidth = doc.internal.pageSize.getWidth()
+
+    // 🎨 1. HEADER (BRANDING)
+    doc.setFillColor(11, 15, 25)
+    doc.rect(0, 0, pageWidth, 40, "F")
+
+    doc.setTextColor(168, 85, 247)
+    doc.setFontSize(24)
+    doc.setFont("helvetica", "bold")
+    doc.text("INTERNLEAKS", 14, 20)
+
+    doc.setTextColor(200, 200, 200)
+    doc.setFontSize(10)
+    doc.setFont("helvetica", "normal")
+    doc.text("Automated AI Threat & Fraud Analysis Report", 14, 28)
+    doc.text(`Report ID: ILX-${report.id} | Date: ${new Date().toLocaleDateString()}`, 14, 34)
+
+    // 📋 2. COMPANY CONTEXT SECTION
+    doc.setTextColor(0, 0, 0)
+    doc.setFontSize(14)
+    doc.setFont("helvetica", "bold")
+    doc.text("Target Entity Details", 14, 52)
+
+    doc.setFontSize(11)
+    doc.setFont("helvetica", "normal")
+    doc.text(`Company Name: ${sanitizeText(report.companyName)}`, 14, 62)
+    doc.text(`Website/Domain: ${sanitizeText(report.companyWebsite || "Not Provided")}`, 14, 70)
+    doc.text(`HR Email Domain: ${sanitizeText(report.hrEmailDomain || "Not Provided")}`, 14, 78)
+    doc.text(`Payment Demanded: ${sanitizeText(report.paymentDemanded)}`, 14, 86)
+    doc.text(`Interview Taken: ${sanitizeText(report.interviewTaken)}`, 14, 94)
+
+    // ⚠️ 3. AI VERDICT & RISK SCORE
+    doc.setFontSize(14)
+    doc.setFont("helvetica", "bold")
+    doc.text("AI Investigation Result", 14, 110)
+
+    if (report.riskPercentage > 75) doc.setTextColor(220, 38, 38)
+    else if (report.riskPercentage > 40) doc.setTextColor(234, 179, 8)
+    else doc.setTextColor(34, 197, 94)
+
+    doc.setFontSize(16)
+    doc.text(`Risk Score: ${report.riskPercentage}%`, 14, 120)
+    
+    doc.setFontSize(11)
+    const splitVerdict = doc.splitTextToSize(`Verdict: ${sanitizeText(report.verdict)}`, pageWidth - 28)
+    doc.text(splitVerdict, 14, 128)
+
+    const verdictHeight = splitVerdict.length * 5
+
+    // 🚩 4. RED FLAGS SECTION
+    doc.setTextColor(0, 0, 0)
+    doc.setFontSize(14)
+    doc.setFont("helvetica", "bold")
+    let yPosition = 128 + verdictHeight + 10
+    doc.text("Detected Anomalies & Red Flags", 14, yPosition)
+
+    doc.setFontSize(10)
+    doc.setFont("helvetica", "normal")
+    yPosition += 10
+    
+    report.redFlags.forEach((flag, index) => {
+      // Har string ko sanitize kar rahe hain taaki emoji pdf na tode
+      const cleanFlag = sanitizeText(flag)
+      const splitText = doc.splitTextToSize(`${index + 1}. ${cleanFlag}`, pageWidth - 28)
+      
+      if (yPosition + splitText.length * 5 > 230) {
+         doc.addPage()
+         yPosition = 20
+      }
+      
+      doc.text(splitText, 14, yPosition)
+      yPosition += splitText.length * 5 + 4
+    })
+
+    // ⚖️ 5. STRICT LEGAL DISCLAIMER
+    if (yPosition > 230) {
+        doc.addPage()
+        yPosition = 20
+    }
+
+    doc.setFillColor(245, 245, 245)
+    doc.rect(10, yPosition + 10, pageWidth - 20, 45, "F")
+
+    doc.setTextColor(100, 100, 100)
+    doc.setFontSize(9)
+    doc.setFont("helvetica", "bold")
+    doc.text("LEGAL DISCLAIMER & TERMS OF USE", 14, yPosition + 18)
+
+    doc.setFontSize(8)
+    doc.setFont("helvetica", "normal")
+    const legalText = "This report was generated autonomously by an Artificial Intelligence system based on user-provided inputs and public web data aggregation. It DOES NOT constitute legal, financial, or professional advice. Internleaks acts solely as a technological tool and assumes no liability for the accuracy of this data or any actions/decisions taken based on this report. This document is for personal educational purposes and fraud-prevention awareness only. The opinions generated do not reflect the official stance of Internleaks or its creators."
+    
+    const splitLegal = doc.splitTextToSize(legalText, pageWidth - 28)
+    doc.text(splitLegal, 14, yPosition + 24)
+
+    doc.save(`Internleaks_Report_${sanitizeText(report.companyName).replace(/\s+/g, "_")}.pdf`)
   }
 
   return (
@@ -65,7 +145,6 @@ export function ResultView({
 
         <AnalysisDetail report={report} />
 
-        {/* Junk Document Blocker ya Privacy Confirm */}
         {!isValidDocument ? (
           <div className="mt-8 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-center backdrop-blur-sm">
             <p className="text-sm font-semibold text-amber-400">⚠️ Invalid Document Detected</p>
@@ -84,7 +163,6 @@ export function ResultView({
           </label>
         )}
 
-        {/* Action buttons */}
         <div className="mt-5 flex flex-col gap-3 sm:flex-row">
           <Button
             onClick={handleReport}
