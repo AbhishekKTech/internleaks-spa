@@ -3,6 +3,10 @@
 import { useEffect, useState } from "react"
 import { Radar } from "lucide-react"
 
+interface AnalyzingViewProps {
+  onComplete: () => void
+}
+
 const STATUS_MESSAGES = [
   "Extracting text and document metadata...",
   "Redacting Personally Identifiable Information (PII)...",
@@ -11,10 +15,15 @@ const STATUS_MESSAGES = [
   "Compiling final risk profile...",
 ]
 
-// Note: Humne onComplete prop hata diya hai. Ab control purely Parent component ke paas hoga.
-export function AnalyzingView() {
+export function AnalyzingView({ onComplete }: AnalyzingViewProps) {
   const [step, setStep] = useState(0)
   const [visible, setVisible] = useState(true)
+
+  // transition to the result view after the heavy "processing" window
+  useEffect(() => {
+    const timer = setTimeout(onComplete, 5000)
+    return () => clearTimeout(timer)
+  }, [onComplete])
 
   // cycle status messages with a fade-out / fade-in between each
   useEffect(() => {
@@ -23,10 +32,9 @@ export function AnalyzingView() {
       const swap = setTimeout(() => {
         setStep((s) => (s + 1) % STATUS_MESSAGES.length)
         setVisible(true)
-      }, 200) // fade effect duration
+      }, 200)
       return () => clearTimeout(swap)
-    }, 2500) // Increased to 2.5s for a realistic deep-scan feel
-    
+    }, 850)
     return () => clearInterval(interval)
   }, [])
 
