@@ -93,6 +93,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 ```
 
 ## 🤝 Contributing Guidelines
+
 <img width="1536" height="1024" alt="how to clone" src="https://github.com/user-attachments/assets/f5d3cc93-949a-4943-b7c5-4f4eee597f95" />
 
 We welcome contributions from the open-source community! Whether it's a UI tweak, a bug fix, or a new feature, your help makes InternLeaks better.
@@ -108,4 +109,4 @@ We welcome contributions from the open-source community! Whether it's a UI tweak
 ## 👨‍💻 Author
 **Abhishek Kumar Sharma** (AbhishekKTech)
 
-[Portfolio](https://meetabhishek.in/) | [GitHub](https://github.com/AbhishekKTech) | [LinkedIn](https://www.google.com/search?q=https://linkedin.com/in/AbhishekKTech)
+[Portfolio](https://meetabhishek.in/) | [GitHub](https://github.com/AbhishekKTech) | [LinkedIn](https://www.linkedin.com/in/abhishekktech/)
