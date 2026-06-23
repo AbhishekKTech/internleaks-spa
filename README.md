@@ -12,7 +12,7 @@
 This repository contains the frontend client for **InternLeaks**. It is built using the Next.js App Router and designed to be fast, responsive, and secure. It provides the user interface for the AI Scanner, the public Scam Wall, the user dashboard, and the Admin Command Center.
 
 🌐 **Live Platform:** [internleaks.in](https://internleaks.in)  
-⚙️ **Backend API Repository:** [InternLeaks Backend]([https://github.com/AbhishekKTech/internleaks-backend](https://github.com/AbhishekKTech/internleaks-api)) *(Update link)*
+⚙️ **Backend API Repository:** [InternLeaks Backend](https://github.com/AbhishekKTech/internleaks-api) 
 
 ---
 
